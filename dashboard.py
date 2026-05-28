@@ -27,6 +27,7 @@ def get_dynamodb():
 
 dynamodb = get_dynamodb()
 KST = timezone(timedelta(hours=9))
+TIER_EMOJI = {'core': '🏛️', 'active': '⚡', 'watch': '👀', 'value': '💎'}
 
 
 def now_kst():
@@ -126,6 +127,8 @@ if holdings:
     for symbol, h in holdings.items():
         market = h.get('market', 'US')
         flag = '🇺🇸' if market == 'US' else '🇰🇷'
+        tier = h.get('tier', 'unknown')
+        tier_disp = f"{TIER_EMOJI.get(tier, '❓')} {tier}"
         name = h.get('name', symbol)
         shares = h.get('shares', 0)
         avg_price = h.get('avg_price', 0)
@@ -141,6 +144,7 @@ if holdings:
 
         holdings_data.append({
             '시장': flag,
+            'Tier': tier_disp,
             '종목': name,
             '수량': shares,
             '평균가': avg_str,
@@ -200,6 +204,8 @@ if trades:
     for t in reversed(trades[-20:]):  # 최근 20건
         market = t.get('market', 'US')
         flag = '🇺🇸' if market == 'US' else '🇰🇷'
+        tier = t.get('tier', 'unknown')
+        tier_disp = f"{TIER_EMOJI.get(tier, '❓')} {tier}"
         action = t.get('action', '?')
         action_emoji = "🟢" if action == 'BUY' else "🔴"
         name = t.get('name', t.get('symbol', '?'))
@@ -215,6 +221,7 @@ if trades:
         row = {
             '시간 (KST)': ts,
             '시장': flag,
+            'Tier': tier_disp,
             '액션': f"{action_emoji} {action}",
             '종목': name,
             '수량': shares,
