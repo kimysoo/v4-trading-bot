@@ -242,6 +242,105 @@ if trades:
 else:
     st.info("거래 기록 없음")
 
+# ============ 한국 종목 수급 ============
+st.header("🇰🇷 한국 종목 수급 현황")
+
+
+@st.cache_data(ttl=300)
+def get_kr_supply_data():
+    """보유 KR 종목의 최근 수급 시그널"""
+    signals = scan_all('v4-analysis-results')
+    kr_signals = [s for s in signals if s.get('market') == 'KR' and s.get('supply')]
+    latest_by_symbol = {}
+    for s in sorted(kr_signals, key=lambda x: x.get('timestamp', ''), reverse=True):
+        symbol = s.get('symbol')
+        if symbol and symbol not in latest_by_symbol:
+            latest_by_symbol[symbol] = s
+    return latest_by_symbol
+
+
+kr_supply = get_kr_supply_data()
+if portfolio and kr_supply:
+    holdings = portfolio.get('holdings', {})
+    kr_holdings = {s: h for s, h in holdings.items() if h.get('market') == 'KR'}
+
+    if kr_holdings:
+        supply_table = []
+        for symbol, h in kr_holdings.items():
+            sig = kr_supply.get(symbol, {})
+            supply = sig.get('supply', {})
+
+            if not supply:
+                continue
+
+            name = h.get('name', symbol)
+
+            foreign_amt = supply.get('foreign_5day_amount_eok', 0)
+            inst_amt = supply.get('institution_5day_amount_eok', 0)
+            personal_amt = supply.get('personal_5day_amount_eok', 0)
+            foreign_streak = supply.get('foreign_streak', 0)
+            inst_streak = supply.get('institution_streak', 0)
+            personal_streak = supply.get('personal_streak', 0)
+
+            # 패턴 판정
+            big_money = foreign_amt + inst_amt
+            if big_money < -500 and personal_amt > 500:
+                pattern = "👥 동학개미"
+            elif foreign_amt > 100 and inst_amt > 100 and personal_amt > 0:
+                pattern = "🔥 전방위 매수"
+            elif foreign_amt > 100 and inst_amt > 100:
+                pattern = "📈 외국인+기관"
+            elif foreign_amt < -100 and inst_amt < -100 and personal_amt < -100:
+                pattern = "❄️ 전방위 매도"
+            elif foreign_amt < -100 and inst_amt < -100:
+                pattern = "📉 외국인+기관 매도"
+            else:
+                pattern = "➖ 혼조"
+
+            supply_table.append({
+                '종목': name,
+                '외국인': f"{foreign_amt:+,.0f}억",
+                '기관': f"{inst_amt:+,.0f}억",
+                '개인': f"{personal_amt:+,.0f}억",
+                '패턴': pattern
+            })
+
+        if supply_table:
+            df = pd.DataFrame(supply_table)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+            # 차트
+            st.subheader("📊 보유 종목 수급 비교 (5일 누적)")
+            chart_data = []
+            for symbol, h in kr_holdings.items():
+                sig = kr_supply.get(symbol, {})
+                supply = sig.get('supply', {})
+                if not supply:
+                    continue
+                chart_data.append({
+                    '종목': h.get('name', symbol),
+                    '외국인': supply.get('foreign_5day_amount_eok', 0),
+                    '기관': supply.get('institution_5day_amount_eok', 0),
+                    '개인': supply.get('personal_5day_amount_eok', 0)
+                })
+
+            if chart_data:
+                chart_df = pd.DataFrame(chart_data)
+                chart_df_melted = chart_df.melt(
+                    id_vars='종목',
+                    value_vars=['외국인', '기관', '개인'],
+                    var_name='주체',
+                    value_name='5일 순매수 (억원)'
+                )
+                st.bar_chart(chart_df_melted, x='종목', y='5일 순매수 (억원)', color='주체')
+        else:
+            st.info("KR 보유 종목 수급 데이터 없음")
+    else:
+        st.info("한국 보유 종목 없음")
+else:
+    st.info("수급 데이터 없음 (Phase 1 적용 후 새 시그널부터 표시)")
+
+
 # ============ 최근 시그널 ============
 st.header("📰 최근 시그널")
 
